@@ -6,6 +6,7 @@ public enum Signals {
   ROTATE,
   LEFT,
   RIGHT,
+  START,
   MUTE
 }
 
@@ -19,11 +20,10 @@ public class InputDevil : MonoBehaviour {
     input[Signals.LEFT] = new List<KeyCode> { KeyCode.LeftArrow, KeyCode.A};
     input[Signals.RIGHT] = new List<KeyCode> { KeyCode.RightArrow, KeyCode.D};
     input[Signals.MUTE] = new List<KeyCode> { KeyCode.M };
-    Debug.Log("putting");
+    input[Signals.START] = new List<KeyCode> { KeyCode.Space };
   }
 
 	public bool checkStarting(Signals s) {
-    Debug.Log("trying " + s);
     foreach (var item in input[s])
     {
       if(Input.GetKeyDown(item)) return true;

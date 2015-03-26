@@ -23,13 +23,16 @@ public class LevelDevil : MonoBehaviour {
   public int lineTarget = 100;
   public int linesRemaining;
   public int speed = 1;
+  public float speedFactor = 10f;
   public int score = 0;
   public int maxScore = 0;
   public AudioSource[] clearClips;
   public int pointsPerBlock = 10;
   public Camera camera;
+  public bool gameRunning = false;
 
 	void Start () {
+    titleString = "Press Space to Start";
 	  StartCoroutine(startLevel());
 	  StartCoroutine(updateUI());
 	}
@@ -47,6 +50,18 @@ public class LevelDevil : MonoBehaviour {
       yield return null;
 
       if(player.checkStarting(Signals.MUTE)) audioMuted = !audioMuted;
+      if(!gameRunning) {
+        if(player.checkOngoing(Signals.START)) {
+          StartCoroutine(runLevel(this, nextThing));
+        } else {
+          Color c = titleText.color;
+          c.a = 0;
+          titleText.color = c;
+          yield return new WaitForSeconds(0.1f);
+          titleText.color = currentColor;
+          yield return new WaitForSeconds(0.1f);
+        }
+      }
     }
 	}
 
@@ -59,7 +74,6 @@ public class LevelDevil : MonoBehaviour {
     currentColor = goodColor;
     yield return StartCoroutine(gridder.initializeGrid());
     yield return StartCoroutine(blocker.spawnBorder(gridder));
-    StartCoroutine(runLevel(this, nextThing));
   }
 	
   public void processClearedLines(int numberCleared) {
@@ -76,21 +90,35 @@ public class LevelDevil : MonoBehaviour {
   }
 
   public IEnumerator runLevel(LevelDevil l, ThingToDo ignoredThing) {
+    gameRunning = true;
     updateValence("TETRAZZO PARADISO", currentColor = goodColor);
     linesRemaining = lineTarget;
     nextThing = blocker.startBlock;
     gridder.clearGrid();
-    while(linesRemaining > 0) {
-      speed = 1 + ((lineTarget - linesRemaining) / 10);
+    blocker.reset(gridder.grid_height);
+    score = 0;
+    maxScore = 0;
+    while(gameRunning) {
+      speed = 1 + (int)((((float)(lineTarget - linesRemaining) / (float)lineTarget)) * 10f);
       logger.log(3f, "next step: {0}", nextThing.Method);
       yield return StartCoroutine(nextThing(this, loseGame));
+      if(linesRemaining <= 0) nextThing = winGame;
     }
   }
 	
+  public IEnumerator winGame(LevelDevil l, ThingToDo ignoredThing) {
+    gameRunning = false;
+    if(score == maxScore) {
+      updateValence("PERFECT PARADISE", currentColor = Color.white);
+    }
+    yield return null;
+  }
+	
   public IEnumerator loseGame(LevelDevil l, ThingToDo ignoredThing) {
-    logger.log(4f, "lost!");
+    logger.log(0f, "lost!");
+    gameRunning = false;
     updateValence("TETRAZZO INFERNO", currentColor = badColor);
     nextThing = runLevel; //this might eventually lead to a stack overflow but no one should be playing more than one game of this anyway
-    yield return new WaitForSeconds(10f);
+    yield return null;
   }
 }

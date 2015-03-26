@@ -19,7 +19,7 @@ public class GridDevil : MonoBehaviour {
 
   private Row[] createLevelGrid () {
     logger.log(1f,"createLevelGrid");
-    int actual_grid_height = grid_height + grid_height_fudge;
+    int actual_grid_height = grid_height;
     Row[] newGrid = new Row[actual_grid_height];
     Vector3 rowBase = gridBaseLowerLeft;
     for(int r = 0; r < actual_grid_height; r = r + 1) {
@@ -42,7 +42,6 @@ public class GridDevil : MonoBehaviour {
 
     for(int r = 0; r < grid_height; r = r + 1) {
       if (checkRowCompletion(r)) {
-        logger.log(5f,"row {0} complete!", r);
         completeRows += 1;
         grid[r].clear();
       }
@@ -76,12 +75,20 @@ public class GridDevil : MonoBehaviour {
 
 
   public bool checkRowCompletion(int rowIndex) {
-    logger.log(3f,"checkRowCompletion, row: {0} filled: {1} width: {2}", rowIndex, grid[rowIndex].filledCells, grid_width);
+    logger.log(0f,"checkRowCompletion, row: {0} filled: {1} width: {2}", rowIndex, grid[rowIndex].filledCells, grid_width);
     return (grid[rowIndex].filledCells == grid_width);
   }
 
+  public bool isValidCell(Vector3 point) {
+    int r = Mathf.FloorToInt(point.y - gridBaseLowerLeft.y);
+    int c = (int)(point.x - gridBaseLowerLeft.x);
+    if(r < 0 || r >= grid_height) return false;
+    if(c < 0 || c >= grid_width) return false;
+    return true;
+  }
+
   public bool isValidCell(int r, int c) {
-    logger.log(1f,"isValidCel: " + r + ", " + c);
+    logger.log(0f,"isValidCel: " + r + ", " + c);
     if(r < 0 || r >= grid_height) return false;
     if(c < 0 || c >= grid_width) return false;
     return true;
@@ -98,9 +105,7 @@ public class GridDevil : MonoBehaviour {
     while(!(isEmptyCell(checkPoint))) {
       checkPoint.y = checkPoint.y + 1;
 
-      row = Mathf.FloorToInt(checkPoint.y - gridBaseLowerLeft.y);
-      column = (int)(checkPoint.x - gridBaseLowerLeft.x);
-      if(!isValidCell(row, column)) {
+      if(!isValidCell(checkPoint)) {
         Transform t = fixee.transform;
         while(t != null) {
           fixee = t.gameObject;
@@ -111,6 +116,7 @@ public class GridDevil : MonoBehaviour {
       }
     }
 
+    logger.log(0f,"dropGridCell: {0}, {1}", row, column);
     grid[row].placeObject(fixee, column);
     return true;
   }
@@ -125,12 +131,11 @@ public class GridDevil : MonoBehaviour {
   }
 
   public bool isEmptyCell(Vector3 point) {
-    logger.log(1f,"isEmptyCell: " + point );
+    logger.log(0f,"isEmptyCell: " + point );
     int r = Mathf.FloorToInt(point.y - gridBaseLowerLeft.y);
     int c = (int)(point.x - gridBaseLowerLeft.x);
 
-    r = Mathf.Clamp(r, -1, grid_height - 1);
-    if(!isValidCell(r,c)) return false;
+    if(!isValidCell(point)) return false;
     return grid[r].isEmptyCell(c);
   }
 
@@ -143,6 +148,8 @@ public class GridDevil : MonoBehaviour {
 
     for(int i = 0; i < range; i++) {
       
+      if(start.y >= grid_height) start.y = (float) (grid_height - 1);
+      logger.log(0f,"iscr: " + start );
       if (!isEmptyCell(start)) {
         return false;
       }

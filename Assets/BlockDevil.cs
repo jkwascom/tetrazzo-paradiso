@@ -8,6 +8,7 @@ public class BlockDevil : MonoBehaviour {
   public Vector3 spawnOffset = new Vector3(0f,1f,0f);
   public float regularDropRate = 0.1f;
   public float fastDropRate = 0.8f;
+  public float maxDropRate = 0.99f;
   public Color[] blockColors = new Color[] {Color.red, Color.red, Color.red, Color.yellow, Color.green, Color.cyan, Color.blue, Color.blue, Color.blue, Color.magenta};
   public Color borderColor = Color.grey;
   public int nextSpawnRow = 0;
@@ -22,21 +23,26 @@ public class BlockDevil : MonoBehaviour {
 
     nextSpawnOffset = gridder.gridBaseLowerLeft;
     nextSpawnOffset.x = nextSpawnOffset.x - 1;
-    GameObject border = makeBlock(gridder.grid_height, spawnOffset, borderColor);
+    GameObject border = makeBlock(gridder.grid_height -1, spawnOffset, borderColor);
 
     doAcrossChain(f, border);
     
     nextSpawnOffset.x = nextSpawnOffset.x + 1 + gridder.grid_width;
-    border = makeBlock(gridder.grid_height, spawnOffset, borderColor);
+    border = makeBlock(gridder.grid_height - 1, spawnOffset, borderColor);
     doAcrossChain(f, border);
     
     nextSpawnOffset.y = nextSpawnOffset.y - 1;
     border = makeBlock(11, new Vector3(-1f,0f,0f), borderColor);
     doAcrossChain(f, border);
     
-    nextSpawnOffset = Vector3.zero;
-    nextSpawnOffset.y = gridder.grid_height;
+    reset(gridder.grid_height);
     yield return null;
+  }
+
+  public void reset(int startHeight) {
+    nextSpawnOffset = Vector3.zero;
+    nextSpawnOffset.y = startHeight;
+    nextSpawnRow = 0;
   }
 
   public IEnumerator startBlock(LevelDevil level, ThingToDo nextThing) {
@@ -56,7 +62,9 @@ public class BlockDevil : MonoBehaviour {
     while(gridder.checkRange(top.transform.position, 4, vertical ? Vector3.up : Vector3.right)) {
       dropRate = regularDropRate * level.speed;
       if (player.checkOngoing(Signals.DROP)) dropRate += fastDropRate;
+      dropRate = Mathf.Clamp(dropRate, .1f, maxDropRate);
 
+      
       top.transform.Translate(0f,-dropRate,0f);
       if (player.checkStarting(Signals.ROTATE) && (gridder.checkRange(top.transform.position, 4, !vertical ? Vector3.up : Vector3.right))) { 
         if (doAcrossChain(tryRotateChain, block)) {
