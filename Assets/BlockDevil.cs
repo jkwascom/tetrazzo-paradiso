@@ -2,10 +2,8 @@
 using System.Collections;
 
 public class BlockDevil : MonoBehaviour {
-  public InputDevil player;
   public GameObject blockPrefab;
   public Vector3 rotationGuide = new Vector3(-1f,1f,0f);
-  //public Vector3 rotationGuide = new Vector3(0f,0f,90f);
   public Vector3 nextSpawnOffset;
   public Vector3 spawnOffset = new Vector3(0f,1f,0f);
   public float regularDropRate = 0.1f;
@@ -14,64 +12,57 @@ public class BlockDevil : MonoBehaviour {
   public Color borderColor = Color.grey;
   public int nextSpawnRow = 0;
   
-  private GridDevil gridder;
-
   public IEnumerator spawnBorder(GridDevil gridder) {
-    this.gridder = gridder;
     yield return new WaitForFixedUpdate();
+    ChainDelegate f = o => {
+        o.name = "border";
+        o.transform.parent = transform;
+        return true;
+    };
 
     nextSpawnOffset = gridder.gridBaseLowerLeft;
     nextSpawnOffset.x = nextSpawnOffset.x - 1;
-    GameObject border = makeBlock(20, spawnOffset, borderColor);
-    doAcrossChain((o) => {
-        o.name = "border";
-        o.transform.parent = this.transform;
-        }, border);
+    GameObject border = makeBlock(gridder.grid_height, spawnOffset, borderColor);
+
+    doAcrossChain(f, border);
     
     nextSpawnOffset.x = nextSpawnOffset.x + 1 + gridder.grid_width;
-    border = makeBlock(20, spawnOffset, borderColor);
-    doAcrossChain((o) => {
-        o.name = "border";
-        o.transform.parent = this.transform;
-        }, border);
+    border = makeBlock(gridder.grid_height, spawnOffset, borderColor);
+    doAcrossChain(f, border);
     
     nextSpawnOffset.y = nextSpawnOffset.y - 1;
     border = makeBlock(11, new Vector3(-1f,0f,0f), borderColor);
-    doAcrossChain((o) => {
-        o.name = "border";
-        o.transform.parent = this.transform;
-        }, border);
+    doAcrossChain(f, border);
     
     nextSpawnOffset = Vector3.zero;
     nextSpawnOffset.y = gridder.grid_height;
     yield return null;
   }
 
-  public IEnumerator startBlock() {
+  public IEnumerator startBlock(LevelDevil level, ThingToDo nextThing) {
     yield return new WaitForFixedUpdate();
-    GameObject go = makeBlock(3, spawnOffset, blockColors[nextSpawnRow]);
-    nextSpawnRow = ( nextSpawnRow + 1 ) % gridder.grid_width;
-    nextSpawnOffset.x = nextSpawnRow;
-    yield return StartCoroutine(lowerBlock(go));
-  }
-
-  public IEnumerator lowerBlock(GameObject block) {
-    GameObject top = getBlockParent(getBlockParent(getBlockParent(block)));
+    GameObject block = makeBlock(3, spawnOffset, blockColors[nextSpawnRow]);
     float dropRate;
     bool vertical = true;
     Vector3 newPosition;
     int leftRightMove;
+    GameObject top = getBlockParent(getBlockParent(getBlockParent(block)));
+    GridDevil gridder = level.gridder;
+    InputDevil player = level.player;
+
+    nextSpawnRow = ( nextSpawnRow + 1 ) % gridder.grid_width;
+    nextSpawnOffset.x = nextSpawnRow;
+
     while(gridder.checkRange(top.transform.position, 4, vertical ? Vector3.up : Vector3.right)) {
-      dropRate = player.checkOngoing(Signals.DROP) ? (fastDropRate + regularDropRate) : regularDropRate;
+      dropRate = regularDropRate * level.speed;
+      if (player.checkOngoing(Signals.DROP)) dropRate += fastDropRate;
+
       top.transform.Translate(0f,-dropRate,0f);
-      if (player.checkStarting(Signals.ROTATE) 
-          && (gridder.checkRange(top.transform.position, 4, !vertical ? Vector3.up : Vector3.right))) {
-        doAcrossChain((o) => {
-          if(!o.Equals(top)) {
-            o.transform.localPosition = new Vector3(o.transform.localPosition.y, o.transform.localPosition.x, o.transform.localPosition.z);
-          }
-        }, block);
-        vertical = !vertical;
+      if (player.checkStarting(Signals.ROTATE) && (gridder.checkRange(top.transform.position, 4, !vertical ? Vector3.up : Vector3.right))) { 
+        if (doAcrossChain(tryRotateChain, block)) {
+          level.logger.log(2.5f, "rotate worked");
+          vertical = !vertical;
+        }
       }
       yield return null;
       
@@ -79,27 +70,41 @@ public class BlockDevil : MonoBehaviour {
       if (player.checkStarting(Signals.RIGHT)) ++leftRightMove;
       if (player.checkStarting(Signals.LEFT)) --leftRightMove;
       if (leftRightMove == 0) continue;
+
       newPosition = top.transform.position;
       newPosition.x += leftRightMove;
+      newPosition.y += 0.6f;
       if (gridder.checkRange(newPosition, 4, vertical ? Vector3.up : Vector3.right)) {
         top.transform.Translate(leftRightMove,0f,0f);
       }
     }
     
-    doAcrossChain(gridder.fixBlock, block);
+    if(doAcrossChain(gridder.fixBlock, block)) {
+      nextThing = gridder.cleanupRows;
+    }
+
+    level.nextThing = nextThing;
     yield return null;
   }
 
-  public void doAcrossChain(ChainDelegate f, GameObject o) {
+  public bool tryRotateChain(GameObject o) {
+    if(getBlockParent(o) == null) return true;
+
+    o.transform.localPosition = new Vector3(o.transform.localPosition.y, o.transform.localPosition.x, o.transform.localPosition.z);
+    return true;
+  }  
+
+  public bool doAcrossChain(ChainDelegate f, GameObject o) {
     GameObject last;
     while(o != null) {
       last = o;
       o = getBlockParent(o);
-      f(last);
+      if(!f(last)) return false;
     }
+    return true;
   }
 
-  public delegate void ChainDelegate(GameObject first);
+  public delegate bool ChainDelegate(GameObject first);
 
   public static GameObject getBlockParent(GameObject g) {
     if(g.transform.parent == null) return null;

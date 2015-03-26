@@ -5,10 +5,10 @@ using System.Collections.Generic;
 public class GridDevil : MonoBehaviour {
   public int grid_width = 10;
   public int grid_height = 20;
+  public int grid_height_fudge = 1;
   public Row[] grid;
   public GameObject emptyGridPrefab;
   public Vector3 gridBaseLowerLeft;
-  public AudioSource[] clearClips;
   public LogDevil logger;
 
   public IEnumerator initializeGrid () {
@@ -19,9 +19,10 @@ public class GridDevil : MonoBehaviour {
 
   private Row[] createLevelGrid () {
     logger.log(1f,"createLevelGrid");
-    Row[] newGrid = new Row[grid_height];
+    int actual_grid_height = grid_height + grid_height_fudge;
+    Row[] newGrid = new Row[actual_grid_height];
     Vector3 rowBase = gridBaseLowerLeft;
-    for(int r = 0; r < grid_height; r = r + 1) {
+    for(int r = 0; r < actual_grid_height; r = r + 1) {
       rowBase.y = r;
       Row newGridRow = new Row(this, rowBase);
       newGrid[r] = newGridRow;
@@ -29,12 +30,19 @@ public class GridDevil : MonoBehaviour {
     return newGrid;
   }
   private delegate void RowCleaner();
-  public IEnumerator cleanupRows() {
+  public void clearGrid() {
+    for(int r = 0; r < grid_height; r = r + 1) {
+        grid[r].clear();
+    }
+  }
+  public IEnumerator cleanupRows(LevelDevil level, ThingToDo nextThing) {
     logger.log(1f,"cleanupRow");
     int completeRows = 0;
+    nextThing = level.blocker.startBlock;
 
     for(int r = 0; r < grid_height; r = r + 1) {
       if (checkRowCompletion(r)) {
+        logger.log(5f,"row {0} complete!", r);
         completeRows += 1;
         grid[r].clear();
       }
@@ -47,12 +55,15 @@ public class GridDevil : MonoBehaviour {
           targetRow = r+completeRows;
           continue;
         }
-        logger.log(3f, System.String.Format("swap rows: {0} and {1}", r, targetRow));
+        logger.log(3f, "swap rows: {0} and {1}", r, targetRow);
         swapRows(r, targetRow);
         break;
       }
     }
-    clearClips[completeRows].Play();
+
+    level.processClearedLines(completeRows);
+    level.nextThing = nextThing;
+
     yield return null;
   }
 
@@ -65,7 +76,7 @@ public class GridDevil : MonoBehaviour {
 
 
   public bool checkRowCompletion(int rowIndex) {
-    logger.log(1f,"checkRowCompletio");
+    logger.log(3f,"checkRowCompletion, row: {0} filled: {1} width: {2}", rowIndex, grid[rowIndex].filledCells, grid_width);
     return (grid[rowIndex].filledCells == grid_width);
   }
 
@@ -76,11 +87,32 @@ public class GridDevil : MonoBehaviour {
     return true;
   }
 
-  public void fixBlock(GameObject fixee) {
+  public bool fixBlock(GameObject fixee) {
     logger.log(1f,"fixBloc");
-    int row = Mathf.FloorToInt(fixee.transform.position.y - gridBaseLowerLeft.y) + 1;
-    int column = (int)(fixee.transform.position.x - gridBaseLowerLeft.x);
+    Vector3 checkPoint = fixee.transform.position;
+    checkPoint.y = checkPoint.y + 1;
+    int row = Mathf.FloorToInt(checkPoint.y - gridBaseLowerLeft.y);
+    int column = (int)(checkPoint.x - gridBaseLowerLeft.x);
+
+    //ugly fudging until i fix fast dropping
+    while(!(isEmptyCell(checkPoint))) {
+      checkPoint.y = checkPoint.y + 1;
+
+      row = Mathf.FloorToInt(checkPoint.y - gridBaseLowerLeft.y);
+      column = (int)(checkPoint.x - gridBaseLowerLeft.x);
+      if(!isValidCell(row, column)) {
+        Transform t = fixee.transform;
+        while(t != null) {
+          fixee = t.gameObject;
+          t = t.parent;
+          Object.Destroy(fixee);
+        }
+        return false;
+      }
+    }
+
     grid[row].placeObject(fixee, column);
+    return true;
   }
 
   public void dropGridCell(int row, int column, int dropHeight) {
@@ -163,6 +195,7 @@ public class GridDevil : MonoBehaviour {
       for(int i = 0; i < cellCount; i++) {
         clearCell(i);
       }
+      filledCells = 0;
     }
 
     public static void swap(Row x, Row y) {
