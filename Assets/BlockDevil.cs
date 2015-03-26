@@ -2,7 +2,6 @@
 using System.Collections;
 
 public class BlockDevil : MonoBehaviour {
-  public GridDevil gridder;
   public InputDevil player;
   public GameObject blockPrefab;
   public Vector3 rotationGuide = new Vector3(-1f,1f,0f);
@@ -15,7 +14,10 @@ public class BlockDevil : MonoBehaviour {
   public Color borderColor = Color.grey;
   public int nextSpawnRow = 0;
   
-  public IEnumerator spawnBorder() {
+  private GridDevil gridder;
+
+  public IEnumerator spawnBorder(GridDevil gridder) {
+    this.gridder = gridder;
     yield return new WaitForFixedUpdate();
 
     nextSpawnOffset = gridder.gridBaseLowerLeft;
@@ -42,17 +44,15 @@ public class BlockDevil : MonoBehaviour {
     
     nextSpawnOffset = Vector3.zero;
     nextSpawnOffset.y = gridder.grid_height;
-	  StartCoroutine(spawnBlock());
     yield return null;
   }
 
-  public IEnumerator spawnBlock() {
+  public IEnumerator startBlock() {
     yield return new WaitForFixedUpdate();
     GameObject go = makeBlock(3, spawnOffset, blockColors[nextSpawnRow]);
     nextSpawnRow = ( nextSpawnRow + 1 ) % gridder.grid_width;
     nextSpawnOffset.x = nextSpawnRow;
-    StartCoroutine(lowerBlock(go));
-    yield return null;
+    yield return StartCoroutine(lowerBlock(go));
   }
 
   public IEnumerator lowerBlock(GameObject block) {
@@ -66,7 +66,6 @@ public class BlockDevil : MonoBehaviour {
       top.transform.Translate(0f,-dropRate,0f);
       if (player.checkStarting(Signals.ROTATE) 
           && (gridder.checkRange(top.transform.position, 4, !vertical ? Vector3.up : Vector3.right))) {
-        //Debug.Log("trying rotate");
         doAcrossChain((o) => {
           if(!o.Equals(top)) {
             o.transform.localPosition = new Vector3(o.transform.localPosition.y, o.transform.localPosition.x, o.transform.localPosition.z);
@@ -87,10 +86,8 @@ public class BlockDevil : MonoBehaviour {
       }
     }
     
-    //Debug.Log("dropped all the way");
     doAcrossChain(gridder.fixBlock, block);
-    yield return new WaitForSeconds(.1f);
-	  StartCoroutine(spawnBlock());
+    yield return null;
   }
 
   public void doAcrossChain(ChainDelegate f, GameObject o) {
